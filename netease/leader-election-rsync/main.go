@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/client-go/netease/leader-election-rsync/election"
 	"k8s.io/client-go/netease/leader-election-rsync/controller"
+	"net/http"
 )
 
 func buildConfig(kubeconfig string) (*rest.Config, error) {
@@ -56,12 +57,16 @@ func main() {
 	var cmLockNamespace string
 	var id string
 	var rsyncFile string
+	var httpServer string
+	var watchDir string
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.StringVar(&id, "id", "", "the holder identity name")
 	flag.StringVar(&rsyncFile, "rsync-file", "/var/leader-election-rsyncfile", "the rsync file to control the rsync action")
 	flag.StringVar(&cmLockName, "config-map-lock-name", "leader-election-rsync", "the configmap lock resource name")
 	flag.StringVar(&cmLockNamespace, "config-map-lock-namespace", "default", "the configmap lock resource namespace")
+	flag.StringVar(&httpServer,"http-server", "0.0.0.0:29991", "http server for election")
+	flag.StringVar(&watchDir,"watch-dir", "/data", "the dir should be watched")
 	flag.Parse()
 
 	if id == "" {
@@ -73,6 +78,10 @@ func main() {
 	rsyncCtl := controller.NewFileController(rsyncFile)
 	switchList = append(switchList, rsyncCtl)
 	masterCtl := controller.NewMasterController(switchList)
+
+	// start http server
+	http.HandleFunc("/data/du", controller.NewDirWatcher(watchDir).Handle)
+	go http.ListenAndServe(httpServer, nil)
 
 	// leader election uses the Kubernetes API by writing to a
 	// lock object, which can be a LeaseLock object (preferred),
