@@ -36,11 +36,10 @@ func (dw *DirWatcher) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (dw *DirWatcher) Start() {
-	ticker := time.NewTicker(time.Second * 5)
 	go func() {
 		for {
 			dw.Watch()
-			<- ticker.C
+			time.Sleep(5 * time.Second)
 		}
 	}()
 }
