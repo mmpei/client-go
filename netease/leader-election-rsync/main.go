@@ -30,7 +30,6 @@ import (
 	"k8s.io/klog"
 	"k8s.io/client-go/netease/leader-election-rsync/election"
 	"k8s.io/client-go/netease/leader-election-rsync/controller"
-	"net/http"
 )
 
 func buildConfig(kubeconfig string) (*rest.Config, error) {
@@ -79,9 +78,17 @@ func main() {
 	switchList = append(switchList, rsyncCtl)
 	masterCtl := controller.NewMasterController(switchList)
 
-	// start http server
-	http.HandleFunc("/data/du", controller.NewDirWatcher(watchDir).Handle)
-	go http.ListenAndServe(httpServer, nil)
+	// start metrics server
+	stat, closer, err := controller.NewPrometheusScope(httpServer)
+	if err != nil {
+		klog.Error("failed to initialize metrics: %s", err)
+	}
+	defer closer.Close()
+	dirWatcher := controller.NewDirWatcher(watchDir, stat)
+	dirWatcher.Start()
+
+	//http.HandleFunc("/data/du", controller.NewDirWatcher(watchDir).Handle)
+	//go http.ListenAndServe(httpServer, nil)
 
 	// leader election uses the Kubernetes API by writing to a
 	// lock object, which can be a LeaseLock object (preferred),
